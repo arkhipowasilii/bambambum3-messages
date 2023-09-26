@@ -54,7 +54,7 @@ while True:
         enc_message = encrypter.do_asym_encrypt_of_message(message.encode('utf-8'))
     else:
         message = ""
-        enc_message = message
+        enc_message = message.encode('utf-8')
 
     # If message is not empty - send it
     if message.startswith("/"):
@@ -87,17 +87,19 @@ while True:
             # Now do the same for message (as we received username, we received whole message, there's no need to check if it has any length)
             message_header = client_socket.recv(HEADER_LENGTH)
             message_length = int(message_header.decode('utf-8').strip())
+            message = client_socket.recv(message_length)
 
             if private_chat_username == username and is_private_chat_accepted:
-                message = client_socket.recv(message_length)
                 if is_check_for_foreign_public_key:
                     encrypter.insert_foreign_public_key(message)
                     is_check_for_foreign_public_key = False
                 else:
                     message = encrypter.do_asym_decrypt_of_foreign_message(message)
                     message = message.decode('utf-8')
+                    print(f'{username} -> {my_username} > {message}')
             else:
-                message = client_socket.recv(message_length).decode('utf-8')
+                message = message.decode('utf-8')
+                print(f'{username} > {message}')
 
             # check private connection authorization
             if private_chat_username == username and is_private_chat_accepted is False:
@@ -108,13 +110,7 @@ while True:
                 else:
                     private_chat_username = ""
 
-
-
-
-            # Print message
-            print(f'{username} > {message}')
-
-            if f"want to start private chat with {my_username}." in message:
+            if isinstance(message, str) and f"want to start private chat with {my_username}." in message:
                 answer = input(f"Do you want to start private chat with {username}. Input y/n")
                 if answer == "y":
                     is_private_chat_accepted = True
@@ -122,6 +118,10 @@ while True:
                     send_message(answer.encode('utf-8'))
                     is_check_for_foreign_public_key = True
                     send_message(encrypter.get_public_key())
+                else:
+                    is_private_chat_accepted = False
+                    private_chat_username = ""
+                    send_message(answer.encode('utf-8'))
 
     except IOError as e:
         # This is normal on non blocking connections - when there are no incoming data error is going to be raised
@@ -135,8 +135,4 @@ while True:
         # We just did not receive anything
         continue
 
-    except Exception as e:
-        # Any other exception - something happened, exit
-        print('Reading error: '.format(str(e)))
-        sys.exit()
 
